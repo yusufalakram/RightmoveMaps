@@ -17,35 +17,46 @@
 
   // ── Data extraction ──────────────────────────────────────────────────────────
 
-  // Rightmove is a Next.js app. __NEXT_DATA__ is inaccessible to content scripts
-  // (isolated world), but Next.js always writes it as a DOM script tag with
-  // id="__NEXT_DATA__" and type="application/json" — which content scripts can read.
-  function buildCoordMap() {
+  function parseProperties(properties) {
     const coords = {};
-    const el = document.getElementById('__NEXT_DATA__');
-    if (!el) return coords;
-    let data;
-    try { data = JSON.parse(el.textContent); } catch (_) { return coords; }
-    const properties = data?.props?.pageProps?.searchResults?.properties;
     if (!Array.isArray(properties)) return coords;
     for (const prop of properties) {
       const id = String(prop?.id ?? '');
       const lat = prop?.location?.latitude;
       const lng = prop?.location?.longitude;
-      if (id && lat != null && lng != null) {
-        coords[id] = { lat, lng };
-      }
+      if (id && lat != null && lng != null) coords[id] = { lat, lng };
     }
     return coords;
   }
 
-  function safeGet(fn) {
-    try { return fn(); } catch (_) { return null; }
+  function buildCoordMap() {
+    const el = document.getElementById('__NEXT_DATA__');
+    if (!el) return {};
+    let data;
+    try { data = JSON.parse(el.textContent); } catch (_) { return {}; }
+    return parseProperties(data?.props?.pageProps?.searchResults?.properties);
+  }
+
+  function getBuildId() {
+    const el = document.getElementById('__NEXT_DATA__');
+    if (!el) return null;
+    try { return JSON.parse(el.textContent)?.buildId ?? null; } catch (_) { return null; }
+  }
+
+  // Fetch the new page's property data from Next.js's data endpoint.
+  // On SPA navigation, __NEXT_DATA__ is stale; this gets the current page's coords.
+  async function fetchPageCoords(buildId) {
+    const url = `/_next/data/${buildId}${location.pathname}.json${location.search}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return {};
+      const data = await res.json();
+      return parseProperties(data?.pageProps?.searchResults?.properties);
+    } catch (_) { return {}; }
   }
 
   // ── DOM helpers ──────────────────────────────────────────────────────────────
 
-  // Extract the Rightmove property ID from a card element via its /properties/{id} link.
   function getPropertyId(card) {
     const link = card.querySelector('a[href*="/properties/"]');
     if (link) {
@@ -68,7 +79,6 @@
     mapEl.className = MAP_CLASS;
     wrapper.appendChild(mapEl);
 
-    // Insert between the photo section and the info section as a flex sibling.
     const photoSection = card.querySelector('[class*="propertyCardPhotoSection"]');
     if (photoSection) {
       photoSection.insertAdjacentElement('afterend', wrapper);
@@ -76,8 +86,6 @@
       card.appendChild(wrapper);
     }
 
-    // Use IntersectionObserver so we only initialise Leaflet when the card
-    // scrolls into view — keeps the page responsive with 20+ results.
     const observer = new IntersectionObserver((entries, obs) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
@@ -108,10 +116,8 @@
 
     L.marker([coords.lat, coords.lng]).addTo(map);
 
-    // Re-centre and repaint whenever the container is resized (e.g. window resize).
     new ResizeObserver(() => map.invalidateSize()).observe(el);
 
-    // Clicking the mini-map opens the full Rightmove map tab for this property.
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       const link = el.closest('[class*="propertyCardContainerWrapper"]')
@@ -126,15 +132,11 @@
 
   function processPage(coordMap) {
     if (Object.keys(coordMap).length === 0) return;
-
     const cards = [...document.querySelectorAll('[class*="propertyCardContainerWrapper"]')];
-
     for (const card of cards) {
       if (card.hasAttribute(PROCESSED_ATTR)) continue;
       const id = getPropertyId(card);
-      if (id && coordMap[id]) {
-        injectMap(card, coordMap[id]);
-      }
+      if (id && coordMap[id]) injectMap(card, coordMap[id]);
     }
   }
 
@@ -144,7 +146,6 @@
     const coordMap = buildCoordMap();
 
     if (Object.keys(coordMap).length === 0) {
-      // The page may still be loading its data scripts. Retry a few times.
       let attempts = 0;
       const interval = setInterval(() => {
         const map = buildCoordMap();
@@ -159,11 +160,41 @@
     run(coordMap);
   }
 
-  function run(coordMap) {
-    processPage(coordMap);
+  function run(initialCoordMap) {
+    const buildId = getBuildId();
+    let currentCoordMap = initialCoordMap;
+    let lastUrl = location.href;
 
-    // Re-run when Rightmove's React app swaps in new cards (pagination, filters).
-    const observer = new MutationObserver(() => processPage(coordMap));
+    processPage(currentCoordMap);
+
+    // On Next.js SPA pagination, __NEXT_DATA__ is stale. Fetch the new page's
+    // data from the Next.js data endpoint and refresh the coord map.
+    async function onNavigate() {
+      if (!buildId) return;
+      const newCoords = await fetchPageCoords(buildId);
+      if (Object.keys(newCoords).length > 0) {
+        currentCoordMap = newCoords;
+        processPage(currentCoordMap);
+      }
+    }
+
+    // history.pushState patches in content scripts only affect the isolated world,
+    // not the page's world. Poll location.href instead — it IS shared.
+    setInterval(() => {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        onNavigate();
+      }
+    }, 200);
+
+    window.addEventListener('popstate', () => {
+      lastUrl = location.href;
+      onNavigate();
+    });
+
+    // Re-run when React swaps in new cards (covers the case where cards appear
+    // after onNavigate has already updated currentCoordMap).
+    const observer = new MutationObserver(() => processPage(currentCoordMap));
     observer.observe(document.body, { childList: true, subtree: true });
   }
 
