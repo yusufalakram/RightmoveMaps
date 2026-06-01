@@ -21,12 +21,6 @@
 [class*="FeaturedCustomerInterstitial"],
 [data-test="featured-agent-banner"],
 
-/* Premium / featured property labels and banners */
-[class*="premiumListing"],
-[class*="PremiumListing"],
-[class*="featuredProperty"],
-[class*="FeaturedProperty"],
-
 /* DFP / GPT ad slots */
 [id^="interstititalSlot-"],
 [id^="dfp-"],
