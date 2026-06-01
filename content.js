@@ -15,6 +15,85 @@
     });
   }
 
+  // ── Transit overlay (tube / rail lines + stations) ───────────────────────────
+
+  // Bundled GeoJSON is fetched once and shared across every mini-map.
+  let transitDataPromise = null;
+  function loadTransitData() {
+    if (transitDataPromise) return transitDataPromise;
+    transitDataPromise = Promise.all([
+      fetch(chrome.runtime.getURL('lib/tube-lines.json')).then((r) => r.json()),
+      fetch(chrome.runtime.getURL('lib/tube-stations.json')).then((r) => r.json()),
+    ])
+      .then(([lines, stations]) => ({
+        lines: lines.lines || [],
+        stations: stations.stations || [],
+      }))
+      .catch(() => ({ lines: [], stations: [] }));
+    return transitDataPromise;
+  }
+
+  // TfL roundel marker: mode-coloured ring + blue bar. Cached per colour.
+  const ROUNDEL_BAR = '#0019A8';
+  const roundelIcons = {};
+  function roundelIcon(color) {
+    if (roundelIcons[color]) return roundelIcons[color];
+    const html =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26" width="13" height="13">' +
+      '<circle cx="13" cy="13" r="10.5" fill="#fff"/>' +
+      '<circle cx="13" cy="13" r="8" fill="none" stroke="' + color + '" stroke-width="4.5"/>' +
+      '<rect x="0" y="10.5" width="26" height="5" fill="' + ROUNDEL_BAR + '"/>' +
+      '</svg>';
+    const icon = L.divIcon({
+      html,
+      className: 'rm-roundel',
+      iconSize: [13, 13],
+      iconAnchor: [6.5, 6.5],
+    });
+    roundelIcons[color] = icon;
+    return icon;
+  }
+
+  // Draw the line segments + stations that fall within the map's current view,
+  // re-rendering when the user pans so panning reveals more of the network.
+  function addTransitOverlay(map) {
+    const layer = L.layerGroup().addTo(map);
+
+    loadTransitData().then(({ lines, stations }) => {
+      if (!lines.length && !stations.length) return;
+
+      function render() {
+        const b = map.getBounds().pad(0.25);
+        const vw = b.getWest(), vs = b.getSouth(), ve = b.getEast(), vn = b.getNorth();
+        layer.clearLayers();
+
+        for (const ln of lines) {
+          const [w, s, e, n] = ln.bb;
+          if (e < vw || w > ve || n < vs || s > vn) continue; // bbox outside view
+          L.polyline(ln.g.map(([lng, lat]) => [lat, lng]), {
+            color: ln.c,
+            weight: 2.5,
+            opacity: 0.9,
+            interactive: false,
+          }).addTo(layer);
+        }
+
+        for (const st of stations) {
+          const [lng, lat] = st.p;
+          if (lng < vw || lng > ve || lat < vs || lat > vn) continue;
+          L.marker([lat, lng], {
+            icon: roundelIcon(st.c),
+            interactive: false,
+            keyboard: false,
+          }).addTo(layer);
+        }
+      }
+
+      render();
+      map.on('moveend', render);
+    });
+  }
+
   // ── Data extraction ──────────────────────────────────────────────────────────
 
   function parseProperties(properties) {
@@ -115,6 +194,8 @@
     }).addTo(map);
 
     L.marker([coords.lat, coords.lng]).addTo(map);
+
+    addTransitOverlay(map);
 
     new ResizeObserver(() => map.invalidateSize()).observe(el);
 

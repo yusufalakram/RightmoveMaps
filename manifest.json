@@ -25,7 +25,9 @@
       "resources": [
         "lib/marker-icon.png",
         "lib/marker-icon-2x.png",
-        "lib/marker-shadow.png"
+        "lib/marker-shadow.png",
+        "lib/tube-lines.json",
+        "lib/tube-stations.json"
       ],
       "matches": ["https://www.rightmove.co.uk/*"]
     }

@@ -67,3 +67,10 @@
 .rm-inline-map:active {
   cursor: grabbing;
 }
+
+/* Station roundel markers — strip any default div-icon box styling */
+.rm-roundel {
+  background: transparent;
+  border: 0;
+  line-height: 0;
+}
