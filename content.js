@@ -103,7 +103,7 @@
       zoom: 15,
       zoomControl: false,
       attributionControl: false,
-      dragging: false,
+      dragging: true,
       scrollWheelZoom: false,
       doubleClickZoom: false,
       keyboard: false,
@@ -118,8 +118,12 @@
 
     new ResizeObserver(() => map.invalidateSize()).observe(el);
 
+    let dragged = false;
+    map.on('dragstart', () => { dragged = true; });
+
     el.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (dragged) { dragged = false; return; }
       const link = el.closest('[class*="propertyCardContainerWrapper"]')
                      ?.querySelector('a[href*="/properties/"]');
       if (link) {
