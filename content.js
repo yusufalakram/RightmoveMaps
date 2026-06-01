@@ -68,9 +68,13 @@
     mapEl.className = MAP_CLASS;
     wrapper.appendChild(mapEl);
 
-    // Append to the card itself — CSS positions the wrapper absolutely on the
-    // right edge and adds padding-right to the card to push its content left.
-    card.appendChild(wrapper);
+    // Insert between the photo section and the info section as a flex sibling.
+    const photoSection = card.querySelector('[class*="propertyCardPhotoSection"]');
+    if (photoSection) {
+      photoSection.insertAdjacentElement('afterend', wrapper);
+    } else {
+      card.appendChild(wrapper);
+    }
 
     // Use IntersectionObserver so we only initialise Leaflet when the card
     // scrolls into view — keeps the page responsive with 20+ results.
