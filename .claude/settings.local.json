@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /Users/yusufalakram/Documents/Dev/ChromeExtensions/RightmoveMaps/lib /Users/yusufalakram/Documents/Dev/ChromeExtensions/RightmoveMaps/icons)",
+      "Bash(curl -sL \"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\" -o /Users/yusufalakram/Documents/Dev/ChromeExtensions/RightmoveMaps/lib/leaflet.js)",
+      "Bash(curl -sL \"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\" -o /Users/yusufalakram/Documents/Dev/ChromeExtensions/RightmoveMaps/lib/leaflet.css)",
+      "Bash(curl -sL \"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png\" -o /Users/yusufalakram/Documents/Dev/ChromeExtensions/RightmoveMaps/lib/marker-icon.png)",
+      "Bash(curl -sL \"https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png\" -o /Users/yusufalakram/Documents/Dev/ChromeExtensions/RightmoveMaps/lib/marker-icon-2x.png)",
+      "Bash(curl -sL \"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png\" -o /Users/yusufalakram/Documents/Dev/ChromeExtensions/RightmoveMaps/lib/marker-shadow.png)"
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Rightmove Maps",
+  "version": "1.0.0",
+  "description": "Shows a map preview directly on each property card in Rightmove search results.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.rightmove.co.uk/property-for-sale/find.html*",
+        "https://www.rightmove.co.uk/property-to-rent/find.html*",
+        "https://www.rightmove.co.uk/new-homes-for-sale/find.html*"
+      ],
+      "js": ["lib/leaflet.js", "content.js"],
+      "css": ["lib/leaflet.css", "content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/marker-icon.png",
+        "lib/marker-icon-2x.png",
+        "lib/marker-shadow.png"
+      ],
+      "matches": ["https://www.rightmove.co.uk/*"]
+    }
+  ]
+}
