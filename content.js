@@ -5,6 +5,10 @@
   const MAP_WRAPPER_CLASS = 'rm-inline-map-wrapper';
   const PROCESSED_ATTR = 'data-rm-map-done';
 
+  const FP_CLASS = 'rm-inline-floorplan';
+  const FP_WRAPPER_CLASS = 'rm-inline-floorplan-wrapper';
+  const FP_DONE_ATTR = 'data-rm-fp-done';
+
   // Fix Leaflet's default marker icon paths to use extension-bundled images.
   function fixLeafletIconPaths() {
     delete L.Icon.Default.prototype._getIconUrl;
@@ -103,7 +107,14 @@
       const id = String(prop?.id ?? '');
       const lat = prop?.location?.latitude;
       const lng = prop?.location?.longitude;
-      if (id && lat != null && lng != null) coords[id] = { lat, lng };
+      if (id && lat != null && lng != null) {
+        coords[id] = {
+          lat,
+          lng,
+          floorplans: prop?.numberOfFloorplans || 0,
+          size: (prop?.displaySize || '').trim(),
+        };
+      }
     }
     return coords;
   }
@@ -157,6 +168,17 @@
     const mapEl = document.createElement('div');
     mapEl.className = MAP_CLASS;
     wrapper.appendChild(mapEl);
+
+    // Relocate the address into the map column as a small caption below the map.
+    // Clone the text rather than moving the React-owned node (moving it risks a
+    // reconciliation crash); the original is hidden via CSS.
+    const addressText = card.querySelector('[data-testid="property-address"]')?.textContent?.trim();
+    if (addressText) {
+      const caption = document.createElement('div');
+      caption.className = 'rm-map-address';
+      caption.textContent = addressText;
+      wrapper.appendChild(caption);
+    }
 
     const photoSection = card.querySelector('[class*="propertyCardPhotoSection"]');
     if (photoSection) {
@@ -213,15 +235,133 @@
     });
   }
 
+  // ── Floorplan injection ──────────────────────────────────────────────────────
+
+  // Search-results JSON only tells us a floorplan *exists* (numberOfFloorplans),
+  // not its URL — that lives on the detail page. Scrape the detail HTML for the
+  // first property-floorplan media URL. Same-origin, so no host permission needed.
+  const FLOORPLAN_RE =
+    /https?:\/\/media\.rightmove\.co\.uk\/[^"'\\\s]*?property-floorplan[^"'\\\s]*?\.(?:png|gif|jpe?g)/gi;
+
+  async function fetchFloorplanUrl(id) {
+    try {
+      const res = await fetch(`/properties/${id}`);
+      if (!res.ok) return null;
+      const html = await res.text();
+      const matches = html.match(FLOORPLAN_RE);
+      if (!matches) return null;
+      // Prefer the full-res original (no _max_ resize suffix) so we control sizing.
+      return matches.find((u) => !/_max_/.test(u)) || matches[0];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Rewrite a full-res floorplan URL to a bounded thumbnail so we don't pull
+  // multi-MB images across every card. /property-floorplan/… → /dir/property-floorplan/…_max_500x500.
+  function floorplanThumb(url) {
+    if (/_max_/.test(url)) return url;
+    return url
+      .replace('media.rightmove.co.uk/property-floorplan', 'media.rightmove.co.uk/dir/property-floorplan')
+      .replace(/\.(png|gif|jpe?g)$/i, '_max_500x500.$1');
+  }
+
+  async function loadFloorplan(inner, id) {
+    inner.classList.add('rm-fp-loading');
+    const url = await fetchFloorplanUrl(id);
+    inner.classList.remove('rm-fp-loading');
+    if (!url) {
+      inner.classList.add('rm-fp-empty');
+      return;
+    }
+
+    const img = document.createElement('img');
+    img.className = 'rm-fp-img';
+    img.loading = 'lazy';
+    img.alt = 'Floorplan';
+    img.src = floorplanThumb(url);
+    // If the resized variant 404s, fall back to the full-res original.
+    img.addEventListener('error', () => { if (img.src !== url) img.src = url; });
+    inner.appendChild(img);
+
+    inner.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.open(url, '_blank');
+    });
+  }
+
+  function injectFloorplan(card, id) {
+    if (card.hasAttribute(FP_DONE_ATTR)) return;
+    card.setAttribute(FP_DONE_ATTR, '1');
+
+    const wrapper = document.createElement('div');
+    wrapper.className = FP_WRAPPER_CLASS;
+
+    const inner = document.createElement('div');
+    inner.className = FP_CLASS;
+    wrapper.appendChild(inner);
+
+    // Sit beside the map: after the map wrapper if present, else after the photo.
+    const mapWrapper = card.querySelector('.' + MAP_WRAPPER_CLASS);
+    const photoSection = card.querySelector('[class*="propertyCardPhotoSection"]');
+    if (mapWrapper) {
+      mapWrapper.insertAdjacentElement('afterend', wrapper);
+    } else if (photoSection) {
+      photoSection.insertAdjacentElement('afterend', wrapper);
+    } else {
+      card.appendChild(wrapper);
+    }
+
+    const observer = new IntersectionObserver((entries, obs) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        obs.unobserve(entry.target);
+        loadFloorplan(inner, id);
+      }
+    }, { rootMargin: '200px' });
+
+    observer.observe(wrapper);
+  }
+
+  // ── Floor-area injection ──────────────────────────────────────────────────────
+
+  // Search-results JSON only carries displaySize for some listings; the rest are
+  // backfilled from the detail page (see fetchSize). The value lands in the native
+  // PropertyInformation row alongside the bed/bath icons. Idempotent: re-adds
+  // itself if React ever re-renders the row and drops our node.
+  const SQFT_CLASS = 'rm-sqft';
+  const SQFT_ICON =
+    '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<path fill="currentColor" d="M4 4h6v2H6v4H4V4Zm10 0h6v6h-2V6h-4V4ZM4 14h2v4h4v2H4v-6Zm16 0v6h-6v-2h4v-4h2Z"/>' +
+    '</svg>';
+
+  function injectSqft(card, size) {
+    const container = card.querySelector('[class*="PropertyInformation_container"]');
+    if (!container || container.querySelector('.' + SQFT_CLASS)) return;
+
+    const text = size.replace(/sq\.?\s*ft\.?/i, 'sq ft');
+    const el = document.createElement('span');
+    el.className = SQFT_CLASS;
+    el.setAttribute('aria-label', text);
+    el.innerHTML = SQFT_ICON;
+    const label = document.createElement('span');
+    label.textContent = text;
+    el.appendChild(label);
+    container.appendChild(el);
+  }
+
   // ── Main loop ────────────────────────────────────────────────────────────────
 
   function processPage(coordMap) {
     if (Object.keys(coordMap).length === 0) return;
     const cards = [...document.querySelectorAll('[class*="propertyCardContainerWrapper"]')];
     for (const card of cards) {
-      if (card.hasAttribute(PROCESSED_ATTR)) continue;
       const id = getPropertyId(card);
-      if (id && coordMap[id]) injectMap(card, coordMap[id]);
+      const info = id && coordMap[id];
+      if (!info) continue;
+      if (!card.hasAttribute(PROCESSED_ATTR)) injectMap(card, info);
+      if (info.floorplans > 0 && !card.hasAttribute(FP_DONE_ATTR)) injectFloorplan(card, id);
+      if (info.size) injectSqft(card, info.size);
     }
   }
 

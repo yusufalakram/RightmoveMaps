@@ -34,24 +34,37 @@
 
 /* ── Per-card map panel ──────────────────────────────────────────────────────── */
 
-/* Map panel as an inline flex item between the photo and info sections */
+/* Map panel as an inline flex item between the photo and info sections.
+   Column layout so the address caption can sit below the map. */
 .rm-inline-map-wrapper {
   flex: 0 0 220px;
   padding: 0 8px;
   box-sizing: border-box;
   align-self: stretch;
   isolation: isolate;
+  display: flex;
+  flex-direction: column;
 }
 
 .rm-inline-map {
   width: 100%;
-  height: 100%;
+  flex: 1 1 auto;
   min-height: 120px;
   border-radius: 6px;
   overflow: hidden;
   cursor: grab;
   pointer-events: all;
   box-shadow: 1px 0 6px rgba(0, 0, 0, 0.12);
+}
+
+/* Address relocated from the info section, captioned under the map */
+.rm-map-address {
+  margin-top: 6px;
+  font: 13px/1.35 sans-serif;
+  font-weight: 600;
+  color: #262637;
+  text-align: center;
+  word-break: break-word;
 }
 
 .rm-inline-map .leaflet-container {
@@ -73,4 +86,86 @@
   background: transparent;
   border: 0;
   line-height: 0;
+}
+
+/* ── Per-card floorplan panel ─────────────────────────────────────────────────── */
+
+/* Mirrors the map wrapper so the two sit side by side as equal flex items */
+.rm-inline-floorplan-wrapper {
+  flex: 0 0 220px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  align-self: stretch;
+  isolation: isolate;
+}
+
+.rm-inline-floorplan {
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-in;
+  box-shadow: 1px 0 6px rgba(0, 0, 0, 0.12);
+}
+
+.rm-inline-floorplan:hover {
+  box-shadow: 1px 0 10px rgba(0, 0, 0, 0.22);
+}
+
+/* Floorplans aren't 16:9 — contain so the whole plan is visible, never cropped */
+.rm-fp-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.rm-inline-floorplan.rm-fp-loading::after {
+  content: "Loading floorplan…";
+  font: 12px/1.4 sans-serif;
+  color: #70727f;
+}
+
+.rm-inline-floorplan.rm-fp-empty {
+  cursor: default;
+}
+
+.rm-inline-floorplan.rm-fp-empty::after {
+  content: "No floorplan";
+  font: 12px/1.4 sans-serif;
+  color: #adaeb8;
+}
+
+/* ── Card text-section cleanup ─────────────────────────────────────────────────── */
+
+/* Address is cloned into the map column; hide the original in the title block */
+[class*="PropertyCardTitle_container"] [data-testid="property-address"] {
+  display: none !important;
+}
+
+/* Drop the per-week secondary price, keep the pcm headline */
+[class*="PropertyPrice_secondaryPrice"] {
+  display: none !important;
+}
+
+/* In the actions row keep only the agent logo; drop call / email / save */
+[class*="PropertyCardActions_actionsContainer"] > div:not([class*="PropertyCardActions_estateAgent"]) {
+  display: none !important;
+}
+
+/* Floor area injected into the native info row, styled to match bed/bath items */
+.rm-sqft {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.rm-sqft svg {
+  width: 20px;
+  height: 20px;
 }
