@@ -32,12 +32,57 @@
   display: none !important;
 }
 
+/* ── Card proportions: bigger photo + map, narrower text, taller card ────────── */
+
+/* The card row is [photo][map][floorplan][text]. Let the image carousel grow into
+   the space we reclaim from the text column, and make the whole card taller. */
+[class*="propertyCardPhotoSection"] {
+  flex: 1 1 auto !important;
+  max-width: none !important;
+  min-height: 360px !important;
+}
+
+/* The photo section is a flex column: image swiper on top, price block below.
+   The swiper's inner elements already inherit its height (height:100% chain), so
+   sizing the container alone scales the photos. Keep the price block compact so
+   it doesn't stretch and leave a white gap under the image. */
+[class*="PropertyCardImageSwiper_swiperContainer"] {
+  height: 320px !important;
+  flex: 0 0 auto !important;
+}
+
+[class*="PropertyPrice_container"] {
+  flex: 0 0 auto !important;
+}
+
+/* The swiper gives each <img> a fixed inline height/width, so it won't fill the
+   taller box on its own. Override (our !important beats the inline style) so the
+   slide and image span the full swiper; object-fit: cover keeps the aspect ratio. */
+[class*="PropertyCardImage_slide"] {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+[class*="PropertyCardImage_slide"] img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+/* Squeeze the text column — the flex sibling holding the title block — so the
+   reclaimed width feeds the photo/map. :has() pins it without a hashed classname. */
+[class*="propertyCardPhotoSection"] ~ div:has([class*="PropertyCardTitle_container"]) {
+  flex: 0 1 300px !important;
+  max-width: 300px !important;
+  min-width: 0 !important;
+}
+
 /* ── Per-card map panel ──────────────────────────────────────────────────────── */
 
 /* Map panel as an inline flex item between the photo and info sections.
    Column layout so the address caption can sit below the map. */
 .rm-inline-map-wrapper {
-  flex: 0 0 220px;
+  flex: 0 0 280px;
   padding: 0 8px;
   box-sizing: border-box;
   align-self: stretch;
@@ -49,7 +94,7 @@
 .rm-inline-map {
   width: 100%;
   flex: 1 1 auto;
-  min-height: 120px;
+  min-height: 320px;
   border-radius: 6px;
   overflow: hidden;
   cursor: grab;
@@ -92,7 +137,7 @@
 
 /* Mirrors the map wrapper so the two sit side by side as equal flex items */
 .rm-inline-floorplan-wrapper {
-  flex: 0 0 220px;
+  flex: 0 0 280px;
   padding: 0 8px;
   box-sizing: border-box;
   align-self: stretch;
@@ -102,7 +147,7 @@
 .rm-inline-floorplan {
   width: 100%;
   height: 100%;
-  min-height: 120px;
+  min-height: 320px;
   border-radius: 6px;
   overflow: hidden;
   background: #fff;
@@ -136,7 +181,7 @@
 }
 
 .rm-inline-floorplan.rm-fp-empty::after {
-  content: "No floorplan";
+  content: "No floorplan available";
   font: 12px/1.4 sans-serif;
   color: #adaeb8;
 }

@@ -290,7 +290,7 @@
     });
   }
 
-  function injectFloorplan(card, id) {
+  function injectFloorplan(card, id, hasFloorplan) {
     if (card.hasAttribute(FP_DONE_ATTR)) return;
     card.setAttribute(FP_DONE_ATTR, '1');
 
@@ -310,6 +310,13 @@
       photoSection.insertAdjacentElement('afterend', wrapper);
     } else {
       card.appendChild(wrapper);
+    }
+
+    // No floorplan for this listing: keep the panel (so the card layout matches
+    // cards that do have one) but show the empty placeholder and skip the fetch.
+    if (!hasFloorplan) {
+      inner.classList.add('rm-fp-empty');
+      return;
     }
 
     const observer = new IntersectionObserver((entries, obs) => {
@@ -360,7 +367,7 @@
       const info = id && coordMap[id];
       if (!info) continue;
       if (!card.hasAttribute(PROCESSED_ATTR)) injectMap(card, info);
-      if (info.floorplans > 0 && !card.hasAttribute(FP_DONE_ATTR)) injectFloorplan(card, id);
+      if (!card.hasAttribute(FP_DONE_ATTR)) injectFloorplan(card, id, info.floorplans > 0);
       if (info.size) injectSqft(card, info.size);
     }
   }
